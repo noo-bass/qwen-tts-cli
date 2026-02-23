@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qwen-tts-cli"
+version = "0.1.0"
+description = "Whisper-style CLI for Qwen3-TTS text-to-speech"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+authors = [{ name = "Noor Ashbass" }]
+keywords = ["tts", "text-to-speech", "qwen", "speech-synthesis", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "qwen-tts>=0.1.0",
+    "soundfile",
+]
+
+[project.scripts]
+qwen-tts = "qwen_tts_cli.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/noorashbass/qwen-tts-cli"
