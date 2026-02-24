@@ -20,6 +20,13 @@ LANGUAGES = [
     "German", "French", "Russian", "Portuguese", "Spanish", "Italian",
 ]
 
+# Mapping from CLI language names to ISO 639-1 codes (used by MLX backend)
+LANG_CODES = {
+    "Chinese": "zh", "English": "en", "Japanese": "ja", "Korean": "ko",
+    "German": "de", "French": "fr", "Russian": "ru", "Portuguese": "pt",
+    "Spanish": "es", "Italian": "it",
+}
+
 MODEL_ALIASES = {
     "0.6B": "Qwen/Qwen3-TTS-12Hz-0.6B",
     "1.7B": "Qwen/Qwen3-TTS-12Hz-1.7B",
@@ -140,31 +147,40 @@ def _generate(model, mode, text, language, speaker, instruct, clone_audio, ref_t
 def _generate_mlx(model, mode, text, language, speaker, instruct,
                    clone_audio, ref_text, output_path):
     """Generate audio using the MLX backend. Writes directly to output_path."""
+    import shutil
+    import tempfile
     from mlx_audio.tts.generate import generate_audio
 
-    prefix = os.path.splitext(output_path)[0]
-    lang = language if language != "Auto" else None
+    lang_code = LANG_CODES.get(language, "en") if language != "Auto" else "en"
 
-    kwargs = dict(model=model, text=text, file_prefix=prefix)
+    # mlx_audio writes to {output_path}/audio_000.wav (directory-based output)
+    tmp_dir = tempfile.mkdtemp(prefix="qwen_tts_mlx_")
+
+    kwargs = dict(
+        model=model,
+        text=text,
+        voice=speaker.lower(),
+        lang_code=lang_code,
+        output_path=tmp_dir,
+        verbose=False,
+    )
 
     if mode == "speak":
-        kwargs["speaker"] = speaker
-        if lang:
-            kwargs["language"] = lang
         if instruct:
             kwargs["instruct"] = instruct
     elif mode == "clone":
         kwargs["ref_audio"] = clone_audio
         if ref_text:
             kwargs["ref_text"] = ref_text
-        if lang:
-            kwargs["language"] = lang
     elif mode == "design":
         kwargs["instruct"] = instruct
-        if lang:
-            kwargs["language"] = lang
 
     generate_audio(**kwargs)
+
+    # Move generated file to the user's output path
+    generated = os.path.join(tmp_dir, "audio_000.wav")
+    shutil.move(generated, output_path)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def _play(path):

@@ -118,8 +118,8 @@ def benchmark_mlx(model_id, label, text, runs):
     from mlx_audio.tts.generate import generate_audio
     import soundfile as sf
 
-    prefix = "/tmp/_qwen_tts_bench"
-    output_path = prefix + ".wav"
+    out_dir = "/tmp/_qwen_tts_bench"
+    out_file = os.path.join(out_dir, "audio_000.wav")
 
     # --- Load ---
     print(f"  Loading {model_id} (MLX)...", flush=True)
@@ -132,13 +132,13 @@ def benchmark_mlx(model_id, label, text, runs):
     print("  Warm-up generation...", flush=True)
     t0 = time.perf_counter()
     generate_audio(
-        model=model, text=text,
-        speaker=SPEAKER, language=LANGUAGE,
-        file_prefix=prefix,
+        text=text, model=model,
+        voice=SPEAKER.lower(), lang_code="en",
+        output_path=out_dir, verbose=False,
     )
     first_run = time.perf_counter() - t0
 
-    data, sr = sf.read(output_path)
+    data, sr = sf.read(out_file)
     audio_duration = len(data) / sr
     print(f"  First gen: {first_run:.2f}s → {audio_duration:.1f}s audio")
 
@@ -147,9 +147,9 @@ def benchmark_mlx(model_id, label, text, runs):
     for i in range(runs):
         t0 = time.perf_counter()
         generate_audio(
-            model=model, text=text,
-            speaker=SPEAKER, language=LANGUAGE,
-            file_prefix=prefix,
+            text=text, model=model,
+            voice=SPEAKER.lower(), lang_code="en",
+            output_path=out_dir, verbose=False,
         )
         elapsed = time.perf_counter() - t0
         gen_times.append(elapsed)
@@ -158,8 +158,9 @@ def benchmark_mlx(model_id, label, text, runs):
     avg_gen = sum(gen_times) / len(gen_times)
 
     # Cleanup
-    if os.path.exists(output_path):
-        os.remove(output_path)
+    import shutil
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
     del model
 
     return {
