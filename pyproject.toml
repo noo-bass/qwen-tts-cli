@@ -23,6 +23,9 @@ dependencies = [
     "soundfile",
 ]
 
+[project.optional-dependencies]
+mlx = ["mlx-audio>=0.3.0"]
+
 [project.scripts]
 qwen-tts = "qwen_tts_cli.cli:cli"
 
