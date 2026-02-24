@@ -81,6 +81,33 @@ def _resolve_mlx_model(model_arg, mode):
     )
 
 
+def _has_backend(name):
+    """Check if a backend is installed without importing it."""
+    import importlib.util
+    if name == "mlx":
+        return importlib.util.find_spec("mlx_audio") is not None
+    if name == "transformers":
+        return importlib.util.find_spec("qwen_tts") is not None
+    return False
+
+
+def _auto_backend():
+    """Pick the best available backend, or exit with a helpful message."""
+    has_mlx = _has_backend("mlx")
+    has_tf = _has_backend("transformers")
+
+    if has_mlx:
+        return "mlx"
+    if has_tf:
+        return "transformers"
+
+    sys.exit(
+        "Error: No backend installed. Install one:\n"
+        '  pip install "qwen-tts-cli[mlx]"           # Apple Silicon (recommended)\n'
+        '  pip install "qwen-tts-cli[transformers]"   # CUDA / CPU\n'
+    )
+
+
 def _detect_device():
     import torch
 
@@ -103,9 +130,15 @@ def _read_text(args):
 
 def _load_model(model_name, device):
     import torch
-    from qwen_tts_cli._compat import patch_transformers_compat
-    patch_transformers_compat()
-    from qwen_tts import Qwen3TTSModel
+    try:
+        from qwen_tts_cli._compat import patch_transformers_compat
+        patch_transformers_compat()
+        from qwen_tts import Qwen3TTSModel
+    except ImportError:
+        sys.exit(
+            'Error: Transformers backend not installed.\n'
+            '  pip install "qwen-tts-cli[transformers]"\n'
+        )
 
     dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
     kwargs = dict(device_map=device, dtype=dtype)
@@ -121,8 +154,13 @@ def _load_model(model_name, device):
 
 
 def _load_model_mlx(model_name):
-    from mlx_audio.tts.utils import load_model
-
+    try:
+        from mlx_audio.tts.utils import load_model
+    except ImportError:
+        sys.exit(
+            'Error: MLX backend not installed.\n'
+            '  pip install "qwen-tts-cli[mlx]"\n'
+        )
     return load_model(model_name)
 
 
@@ -217,9 +255,9 @@ def _build_parser():
                         help="Output audio file path.")
     parser.add_argument("-m", "--model", default="0.6B",
                         help="Model size (0.6B, 1.7B) or full HuggingFace model ID.")
-    parser.add_argument("-b", "--backend", default="transformers",
+    parser.add_argument("-b", "--backend", default=None,
                         choices=["transformers", "mlx"],
-                        help="Inference backend.")
+                        help="Inference backend (auto-detected if omitted).")
     parser.add_argument("-s", "--speaker", default="Ryan",
                         help=f"Speaker voice. Choices: {', '.join(SPEAKERS)}")
     parser.add_argument("-l", "--language", default="Auto",
@@ -272,7 +310,7 @@ def cli():
         parser.error("--instruct is required when using --design.")
 
     speaker = next((k for k in SPEAKERS if k.lower() == args.speaker.lower()), args.speaker)
-    backend = args.backend
+    backend = args.backend or _auto_backend()
 
     if backend == "mlx":
         model_name = _resolve_mlx_model(args.model, mode)

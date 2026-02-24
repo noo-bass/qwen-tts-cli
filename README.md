@@ -5,10 +5,11 @@ Whisper-style CLI for [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) text-to-s
 ## Install
 
 ```bash
-pip install qwen-tts-cli
-
-# For MLX backend (Apple Silicon, recommended for Mac)
+# Apple Silicon (recommended for Mac — 6x faster)
 pip install "qwen-tts-cli[mlx]"
+
+# CUDA / CPU
+pip install "qwen-tts-cli[transformers]"
 ```
 
 ## Usage
@@ -26,7 +27,7 @@ qwen-tts "Good morning." -o greeting.wav
 # Use the larger model
 qwen-tts "Higher quality voice." --model 1.7B
 
-# Use MLX backend (Apple Silicon — ~6x faster)
+# Force a specific backend (auto-detected by default)
 qwen-tts "Fast on Mac!" --backend mlx
 
 # Clone a voice from a 3-second sample
@@ -51,7 +52,7 @@ positional arguments:
 options:
   -o, --output FILE       Output audio file (default: output.wav)
   -m, --model SIZE        Model: 0.6B, 1.7B, or full HF ID (default: 0.6B)
-  -b, --backend BACKEND   Inference backend: transformers, mlx (default: transformers)
+  -b, --backend BACKEND   Inference backend: transformers, mlx (default: auto)
   -s, --speaker NAME      Speaker voice (default: Ryan)
   -l, --language LANG     Language (default: Auto)
   -i, --instruct TEXT     Style/emotion instruction
@@ -99,7 +100,7 @@ Uses PyTorch + HuggingFace Transformers. Works on all platforms.
 
 ### MLX (Apple Silicon)
 
-Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with 8-bit quantization for native Apple Silicon acceleration. Included with `pip install "qwen-tts-cli[mlx]"`.
+Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with 8-bit quantization for native Apple Silicon acceleration.
 
 ```bash
 qwen-tts "Hello!" --backend mlx
