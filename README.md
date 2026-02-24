@@ -8,7 +8,7 @@ Whisper-style CLI for [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) text-to-s
 pip install qwen-tts-cli
 
 # For MLX backend (Apple Silicon, recommended for Mac)
-pip install qwen-tts-cli mlx-audio
+pip install "qwen-tts-cli[mlx]"
 ```
 
 ## Usage
@@ -99,7 +99,7 @@ Uses PyTorch + HuggingFace Transformers. Works on all platforms.
 
 ### MLX (Apple Silicon)
 
-Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with 8-bit quantization for native Apple Silicon acceleration. Requires `pip install mlx-audio`.
+Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with 8-bit quantization for native Apple Silicon acceleration. Included with `pip install "qwen-tts-cli[mlx]"`.
 
 ```bash
 qwen-tts "Hello!" --backend mlx

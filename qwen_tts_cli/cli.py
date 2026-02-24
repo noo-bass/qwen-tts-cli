@@ -103,6 +103,8 @@ def _read_text(args):
 
 def _load_model(model_name, device):
     import torch
+    from qwen_tts_cli._compat import patch_transformers_compat
+    patch_transformers_compat()
     from qwen_tts import Qwen3TTSModel
 
     dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
