@@ -20,6 +20,9 @@ Usage:
 
     # Run all speak-mode families
     python benchmark_quant.py --runs 3
+
+    # Keep models in cache after benchmarking (default: delete after each)
+    python benchmark_quant.py --family 0.6B-CustomVoice --keep-cache
 """
 
 import argparse
@@ -56,6 +59,30 @@ SPEAK_FAMILIES = [k for k, v in FAMILIES.items() if v[2] == "speak"]
 def model_id(size, suffix, quant):
     """Build the HuggingFace model ID for an MLX community model."""
     return f"mlx-community/Qwen3-TTS-12Hz-{size}-{suffix}-{quant}"
+
+
+def _delete_from_cache(repo_id):
+    """Delete a model from the HuggingFace cache to free disk space."""
+    try:
+        from huggingface_hub import scan_cache_dir
+    except ImportError:
+        print(f"    (huggingface_hub not available, skipping cache cleanup)")
+        return
+
+    cache_info = scan_cache_dir()
+    revision_hashes = []
+    for repo in cache_info.repos:
+        if repo.repo_id == repo_id:
+            revision_hashes = [rev.commit_hash for rev in repo.revisions]
+            break
+
+    if not revision_hashes:
+        return
+
+    strategy = cache_info.delete_revisions(*revision_hashes)
+    freed = strategy.expected_freed_size_str
+    strategy.execute()
+    print(f"    Cleaned cache: {repo_id} ({freed} freed)")
 
 
 def _get_peak_memory():
@@ -131,9 +158,13 @@ def benchmark_variant(model_id_str, mode, text, runs, ref_audio=None, ref_text=N
     peak_mem = _get_peak_memory()
     peak_mem_mb = peak_mem / (1024 * 1024) if peak_mem is not None else None
 
-    # Cleanup
+    # Cleanup temp audio dir
     shutil.rmtree(out_dir, ignore_errors=True)
     del model
+
+    # Force Python GC so MLX releases references before cache deletion
+    import gc
+    gc.collect()
 
     return {
         "model_id": model_id_str,
@@ -263,6 +294,11 @@ def main():
         "--output-json", default=None,
         help="Save raw benchmark data to a JSON file.",
     )
+    parser.add_argument(
+        "--keep-cache", action="store_true",
+        help="Keep downloaded models in the HF cache after benchmarking. "
+             "By default, each model is deleted after benchmarking to save disk space.",
+    )
     args = parser.parse_args()
 
     # Validate MLX is available
@@ -300,6 +336,7 @@ def main():
     print(f"  Families:  {', '.join(families_to_run)}")
     print(f"  Quants:    {', '.join(quants)}")
     print(f"  Runs:      {args.runs} (+ 1 warm-up)")
+    print(f"  Cache:     {'keep' if args.keep_cache else 'delete after each model'}")
     print(f"  Text:      {args.text[:60]}{'...' if len(args.text) > 60 else ''}")
     print()
 
@@ -324,6 +361,9 @@ def main():
             except Exception as e:
                 print(f"    Error: {e}")
                 family_results.append((quant, None))
+
+            if not args.keep_cache:
+                _delete_from_cache(mid)
             print()
 
         all_results[fam] = family_results
