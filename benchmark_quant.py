@@ -89,7 +89,9 @@ def _get_peak_memory():
     """Return peak Metal GPU memory in bytes, or None if unavailable."""
     try:
         import mlx.core as mx
-        return mx.metal.get_peak_memory()
+        # mx.get_peak_memory (new) replaces mx.metal.get_peak_memory (deprecated)
+        fn = getattr(mx, "get_peak_memory", None) or mx.metal.get_peak_memory
+        return fn()
     except (ImportError, AttributeError):
         return None
 
@@ -98,7 +100,8 @@ def _reset_peak_memory():
     """Reset peak Metal GPU memory counter."""
     try:
         import mlx.core as mx
-        mx.metal.reset_peak_memory()
+        fn = getattr(mx, "reset_peak_memory", None) or mx.metal.reset_peak_memory
+        fn()
     except (ImportError, AttributeError):
         pass
 
@@ -255,7 +258,7 @@ def print_summary(all_results):
 
     print("MLX_MODELS = {")
     for size, mode, mid in sorted(recommendations):
-        print(f'    ("{size}", "{mode:6s}"): "{mid}",')
+        print(f'    ("{size}", "{mode}"): "{mid}",')
     print("}")
     print()
 

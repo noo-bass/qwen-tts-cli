@@ -40,8 +40,8 @@ MODE_SUFFIXES = {
 
 # MLX model mapping: (size_alias, mode) -> HuggingFace model ID
 MLX_MODELS = {
-    ("0.6B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
-    ("1.7B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
+    ("0.6B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit",
+    ("1.7B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-4bit",
     ("0.6B", "clone"):  "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
     ("1.7B", "clone"):  "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
     ("1.7B", "design"): "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",

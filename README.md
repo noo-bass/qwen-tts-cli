@@ -110,9 +110,9 @@ qwen-tts "Hi!" --backend mlx --design --instruct "warm"   # voice design
 
 | Size | Mode | Quant | HuggingFace ID |
 |------|------|-------|----------------|
-| 0.6B | speak  | 4-bit | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit` |
+| 0.6B | speak  | 6-bit | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-6bit` |
 | 0.6B | clone  | 4-bit | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit` |
-| 1.7B | speak  | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` |
+| 1.7B | speak  | 4-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-4bit` |
 | 1.7B | clone  | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` |
 | 1.7B | design | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` |
 
