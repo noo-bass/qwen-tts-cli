@@ -40,9 +40,11 @@ MODE_SUFFIXES = {
 
 # MLX model mapping: (size_alias, mode) -> HuggingFace model ID
 MLX_MODELS = {
-    ("1.7B", "speak"): "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
-    ("0.6B", "clone"): "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
-    ("1.7B", "clone"): "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+    ("0.6B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
+    ("1.7B", "speak"):  "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
+    ("0.6B", "clone"):  "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit",
+    ("1.7B", "clone"):  "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+    ("1.7B", "design"): "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",
 }
 
 
@@ -68,9 +70,9 @@ def _resolve_mlx_model(model_arg, mode):
     if key in MLX_MODELS:
         return MLX_MODELS[key]
 
-    # Auto-upgrade: only 1.7B CustomVoice exists for MLX speak mode
-    if model_arg == "0.6B" and mode == "speak" and ("1.7B", mode) in MLX_MODELS:
-        print("Note: MLX backend only has the 1.7B CustomVoice model, upgrading automatically.")
+    # Auto-upgrade: 0.6B has no design model, use 1.7B
+    if model_arg == "0.6B" and mode == "design" and ("1.7B", mode) in MLX_MODELS:
+        print("Note: Voice design requires the 1.7B model, upgrading automatically.")
         return MLX_MODELS[("1.7B", mode)]
 
     available = [f"  {k[0]} ({k[1]} mode)" for k in MLX_MODELS]
