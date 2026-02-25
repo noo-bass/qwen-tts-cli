@@ -29,6 +29,7 @@ LANGUAGE = "English"
 MODEL_REGISTRY = {
     "tf-0.6B": ("transformers", "0.6B", "Transformers 0.6B"),
     "tf-1.7B": ("transformers", "1.7B", "Transformers 1.7B"),
+    "mlx-0.6B-4bit": ("mlx", "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit", "MLX 0.6B 4-bit"),
     "mlx-1.7B-8bit": ("mlx", "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit", "MLX 1.7B 8-bit"),
 }
 
