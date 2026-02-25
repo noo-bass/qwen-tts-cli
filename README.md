@@ -100,17 +100,23 @@ Uses PyTorch + HuggingFace Transformers. Works on all platforms.
 
 ### MLX (Apple Silicon)
 
-Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with 8-bit quantization for native Apple Silicon acceleration.
+Uses [mlx-audio](https://github.com/lucasnewman/mlx-audio) with quantized models from [mlx-community](https://huggingface.co/mlx-community) for native Apple Silicon acceleration. All modes (speak, clone, design) are supported.
 
 ```bash
 qwen-tts "Hello!" --backend mlx
+qwen-tts "Hello!" --backend mlx --model 0.6B              # smaller, faster
+qwen-tts "Hi!" --backend mlx --design --instruct "warm"   # voice design
 ```
 
-| MLX Model | Mode | HuggingFace ID |
-|-----------|------|----------------|
-| 1.7B 8-bit | speak | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` |
-| 1.7B 8-bit | clone | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` |
-| 0.6B 4-bit | clone | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit` |
+| Size | Mode | Quant | HuggingFace ID |
+|------|------|-------|----------------|
+| 0.6B | speak  | 4-bit | `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit` |
+| 0.6B | clone  | 4-bit | `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit` |
+| 1.7B | speak  | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` |
+| 1.7B | clone  | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` |
+| 1.7B | design | 8-bit | `mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` |
+
+Additional quantization variants (4bit, 5bit, 6bit, 8bit, bf16) are available on HuggingFace for all families. Use `benchmark_quant.py` to find the best variant for your hardware.
 
 ## Benchmark (Apple Silicon)
 
