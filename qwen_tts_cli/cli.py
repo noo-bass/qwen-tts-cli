@@ -186,24 +186,16 @@ def _generate(model, mode, text, language, speaker, instruct, clone_audio, ref_t
     )
 
 
-def _generate_mlx(model, mode, text, language, speaker, instruct,
-                   clone_audio, ref_text, output_path):
-    """Generate audio using the MLX backend. Writes directly to output_path."""
-    import shutil
-    import tempfile
-    from mlx_audio.tts.generate import generate_audio
-
+def _mlx_kwargs(model, mode, text, language, speaker, instruct,
+                clone_audio, ref_text):
+    """Build shared kwargs for MLX generate_audio calls."""
     lang_code = LANG_CODES.get(language, "en") if language != "Auto" else "en"
-
-    # mlx_audio writes to {output_path}/audio_000.wav (directory-based output)
-    tmp_dir = tempfile.mkdtemp(prefix="qwen_tts_mlx_")
 
     kwargs = dict(
         model=model,
         text=text,
         voice=speaker.lower(),
         lang_code=lang_code,
-        output_path=tmp_dir,
         verbose=False,
     )
 
@@ -217,12 +209,42 @@ def _generate_mlx(model, mode, text, language, speaker, instruct,
     elif mode == "design":
         kwargs["instruct"] = instruct
 
+    return kwargs
+
+
+def _generate_mlx(model, mode, text, language, speaker, instruct,
+                   clone_audio, ref_text, output_path):
+    """Generate audio using the MLX backend. Writes directly to output_path."""
+    import shutil
+    import tempfile
+    from mlx_audio.tts.generate import generate_audio
+
+    kwargs = _mlx_kwargs(model, mode, text, language, speaker, instruct,
+                         clone_audio, ref_text)
+
+    # mlx_audio writes to {output_path}/audio_000.wav (directory-based output)
+    tmp_dir = tempfile.mkdtemp(prefix="qwen_tts_mlx_")
+    kwargs["output_path"] = tmp_dir
+
     generate_audio(**kwargs)
 
     # Move generated file to the user's output path
     generated = os.path.join(tmp_dir, "audio_000.wav")
     shutil.move(generated, output_path)
     shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _stream_mlx(model, mode, text, language, speaker, instruct,
+                clone_audio, ref_text, streaming_interval):
+    """Stream audio in real-time using MLX backend's token-level streaming."""
+    from mlx_audio.tts.generate import generate_audio
+
+    kwargs = _mlx_kwargs(model, mode, text, language, speaker, instruct,
+                         clone_audio, ref_text)
+    kwargs["stream"] = True
+    kwargs["streaming_interval"] = streaming_interval
+
+    generate_audio(**kwargs)
 
 
 def _play(path):
@@ -282,6 +304,12 @@ def _build_parser():
     design.add_argument("--design", action="store_true",
                         help="Use voice design mode (describe a voice with --instruct).")
 
+    streaming = parser.add_argument_group("streaming (MLX backend only)")
+    streaming.add_argument("--stream", action="store_true",
+                           help="Stream audio playback in real-time instead of saving to file.")
+    streaming.add_argument("--stream-interval", type=float, default=2.0,
+                           help="Seconds of audio per streaming chunk.")
+
     parser.add_argument("--list-speakers", action="store_true",
                         help="List available speakers and exit.")
     parser.add_argument("--version", action="version",
@@ -314,10 +342,22 @@ def cli():
     speaker = next((k for k in SPEAKERS if k.lower() == args.speaker.lower()), args.speaker)
     backend = args.backend or _auto_backend()
 
+    if args.stream and backend != "mlx":
+        parser.error("--stream requires the MLX backend (-b mlx).")
+
     if backend == "mlx":
         model_name = _resolve_mlx_model(args.model, mode)
         print(f"Loading {model_name} (MLX backend)...")
         model = _load_model_mlx(model_name)
+
+        if args.stream:
+            print("Streaming speech...")
+            _stream_mlx(
+                model, mode, text, args.language,
+                speaker, args.instruct, args.clone, args.ref_text,
+                args.stream_interval,
+            )
+            return
 
         print("Generating speech...")
         _generate_mlx(
