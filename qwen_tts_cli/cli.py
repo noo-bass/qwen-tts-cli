@@ -121,6 +121,12 @@ def _detect_device():
 
 
 def _read_text(args):
+    if args.file:
+        try:
+            with open(args.file) as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            sys.exit(f"Error: File not found: {args.file}")
     if not args.text:
         if not sys.stdin.isatty():
             return sys.stdin.read().strip()
@@ -275,6 +281,8 @@ def _build_parser():
         "text", nargs="*",
         help='Text to speak. Use "-" to read from stdin.',
     )
+    parser.add_argument("-f", "--file", default=None,
+                        help="Read text from a file instead of the command line.")
     parser.add_argument("-o", "--output", default="output.wav",
                         help="Output audio file path.")
     parser.add_argument("-m", "--model", default="0.6B",
