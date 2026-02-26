@@ -192,13 +192,12 @@ def _generate(model, mode, text, language, speaker, instruct, clone_audio, ref_t
     )
 
 
-def _mlx_kwargs(model, mode, text, language, speaker, instruct,
-                clone_audio, ref_text):
-    """Build shared kwargs for MLX generate_audio calls."""
+def _mlx_gen_kwargs(mode, text, language, speaker, instruct,
+                    clone_audio, ref_text):
+    """Build kwargs for model.generate() calls (no 'model' key)."""
     lang_code = LANG_CODES.get(language, "en") if language != "Auto" else "en"
 
     kwargs = dict(
-        model=model,
         text=text,
         voice=speaker.lower(),
         lang_code=lang_code,
@@ -225,8 +224,9 @@ def _generate_mlx(model, mode, text, language, speaker, instruct,
     import tempfile
     from mlx_audio.tts.generate import generate_audio
 
-    kwargs = _mlx_kwargs(model, mode, text, language, speaker, instruct,
-                         clone_audio, ref_text)
+    kwargs = _mlx_gen_kwargs(mode, text, language, speaker, instruct,
+                             clone_audio, ref_text)
+    kwargs["model"] = model
 
     # mlx_audio writes to {output_path}/audio_000.wav (directory-based output)
     tmp_dir = tempfile.mkdtemp(prefix="qwen_tts_mlx_")
@@ -249,37 +249,131 @@ def _split_sentences(text, chunk_size=1):
             for i in range(0, len(sentences), chunk_size)]
 
 
+def _split_paragraphs(text):
+    """Split text on blank lines into paragraphs."""
+    return [p.strip() for p in text.split("\n\n") if p.strip()]
+
+
 def _stream_mlx_tokens(model, mode, text, language, speaker, instruct,
-                       clone_audio, ref_text):
-    """Stream audio in real-time using MLX backend's token-level streaming."""
-    from mlx_audio.tts.generate import generate_audio
-
-    kwargs = _mlx_kwargs(model, mode, text, language, speaker, instruct,
-                         clone_audio, ref_text)
+                       clone_audio, ref_text, streaming_interval):
+    """Stream audio in real-time using token-level streaming."""
+    kwargs = _mlx_gen_kwargs(mode, text, language, speaker, instruct,
+                             clone_audio, ref_text)
     kwargs["stream"] = True
+    kwargs["streaming_interval"] = streaming_interval
+    # Treat the whole text as one segment — don't re-split on newlines
+    kwargs["split_pattern"] = ""
 
-    generate_audio(**kwargs)
+    lang_code = LANG_CODES.get(language, "en") if language != "Auto" else "en"
+    print(f"\033[94mText:\033[0m {text}")
+    print(f"\033[94mVoice:\033[0m {speaker.lower()}")
+    print(f"\033[94mSpeed:\033[0m 1.0x")
+    print(f"\033[94mLanguage:\033[0m {lang_code}")
+    print()
+
+    player = _StreamPlayer(sample_rate=model.sample_rate)
+    try:
+        for result in model.generate(**kwargs):
+            player.queue(result.audio)
+    finally:
+        player.finish()
+
+
+class _StreamPlayer:
+    """Audio player that outputs silence on buffer underrun instead of stopping.
+
+    Unlike mlx_audio's AudioPlayer, this keeps the sound stream running
+    continuously, avoiding audio loss from stop/restart cycles between chunks.
+    """
+
+    def __init__(self, sample_rate=24000):
+        import sounddevice as sd
+        from collections import deque
+        from threading import Event, Lock
+
+        self._lock = Lock()
+        self._buffer = deque()
+        self._finished = False
+        self._done = Event()
+
+        self._stream = sd.OutputStream(
+            samplerate=sample_rate, channels=1,
+            callback=self._callback, blocksize=2048,
+        )
+        self._stream.start()
+
+    def _callback(self, outdata, frames, _time, _status):
+        import sounddevice as sd
+        filled = 0
+        with self._lock:
+            while filled < frames and self._buffer:
+                chunk = self._buffer[0]
+                n = min(frames - filled, len(chunk))
+                outdata[filled:filled + n, 0] = chunk[:n]
+                filled += n
+                if n == len(chunk):
+                    self._buffer.popleft()
+                else:
+                    self._buffer[0] = chunk[n:]
+
+        if filled < frames:
+            outdata[filled:] = 0
+            if self._finished and not self._buffer:
+                self._done.set()
+                raise sd.CallbackStop()
+
+    def queue(self, audio):
+        import numpy as np
+        with self._lock:
+            self._buffer.append(np.asarray(audio))
+
+    def finish(self):
+        """Signal all audio is queued, wait for playback to complete."""
+        import sounddevice as sd
+        self._finished = True
+        with self._lock:
+            if not self._buffer:
+                self._done.set()
+        self._done.wait()
+        sd.sleep(150)
+        self._stream.stop()
+        self._stream.close()
 
 
 def _stream_mlx_sentences(model, mode, text, language, speaker, instruct,
-                          clone_audio, ref_text, chunk_size):
-    """Stream audio sentence-by-sentence with pipelined playback."""
-    from mlx_audio.tts.audio_player import AudioPlayer
+                          clone_audio, ref_text, chunks,
+                          token_stream=False):
+    """Stream audio chunk-by-chunk with pipelined playback."""
+    import numpy as np
 
-    chunks = _split_sentences(text, chunk_size)
-    player = AudioPlayer(sample_rate=model.sample_rate)
+    lang_code = LANG_CODES.get(language, "en") if language != "Auto" else "en"
+    print(f"\033[94mText:\033[0m {text}")
+    print(f"\033[94mVoice:\033[0m {speaker.lower()}")
+    print(f"\033[94mSpeed:\033[0m 1.0x")
+    print(f"\033[94mLanguage:\033[0m {lang_code}")
+    print()
+
+    player = _StreamPlayer(sample_rate=model.sample_rate)
+    # Short silence between sentences for natural pacing
+    silence = np.zeros(int(model.sample_rate * 0.15), dtype=np.float32)
 
     try:
         for i, chunk in enumerate(chunks):
-            kwargs = _mlx_kwargs(model, mode, chunk, language, speaker,
-                                 instruct, clone_audio, ref_text)
-            print(f"  [{i + 1}/{len(chunks)}] {chunk[:80]}{'...' if len(chunk) > 80 else ''}")
+            kwargs = _mlx_gen_kwargs(mode, chunk, language, speaker,
+                                     instruct, clone_audio, ref_text)
+            if token_stream:
+                kwargs["stream"] = True
+                kwargs["streaming_interval"] = 2.0
+            print(f"  [{i + 1}/{len(chunks)}] {chunk}")
 
             for result in model.generate(**kwargs):
-                player.queue_audio(result.audio)
+                player.queue(result.audio)
+
+            # Add silence gap between chunks (not after the last one)
+            if i < len(chunks) - 1:
+                player.queue(silence)
     finally:
-        player.wait_for_drain()
-        player.stop()
+        player.finish()
 
 
 def _play(path):
@@ -343,10 +437,15 @@ def _build_parser():
 
     streaming = parser.add_argument_group("streaming (MLX backend only)")
     streaming.add_argument("--stream", action="store_true",
-                           help="Stream audio playback in real-time (token-level).")
+                           help="Stream audio playback in real-time (token-level). "
+                                "Combine with --chunk-sentences or --chunk-paragraphs "
+                                "for hybrid mode (token streaming within each chunk).")
+    streaming.add_argument("--stream-interval", type=float, default=2.0,
+                           help="Seconds of audio per token-level streaming chunk.")
     streaming.add_argument("--chunk-sentences", type=int, default=None, metavar="N",
-                           help="Stream in sentence chunks of N sentences. Avoids mid-word "
-                                "cuts at the cost of slightly higher latency.")
+                           help="Stream in chunks of N sentences.")
+    streaming.add_argument("--chunk-paragraphs", action="store_true",
+                           help="Stream in paragraph chunks (split on blank lines).")
 
     parser.add_argument("--list-speakers", action="store_true",
                         help="List available speakers and exit.")
@@ -380,27 +479,37 @@ def cli():
     speaker = next((k for k in SPEAKERS if k.lower() == args.speaker.lower()), args.speaker)
     backend = args.backend or _auto_backend()
 
-    if (args.stream or args.chunk_sentences) and backend != "mlx":
-        parser.error("--stream/--chunk-sentences requires the MLX backend (-b mlx).")
+    if (args.stream or args.chunk_sentences or args.chunk_paragraphs) and backend != "mlx":
+        parser.error("Streaming options require the MLX backend (-b mlx).")
 
     if backend == "mlx":
         model_name = _resolve_mlx_model(args.model, mode)
         print(f"Loading {model_name} (MLX backend)...")
         model = _load_model_mlx(model_name)
 
-        if args.stream or args.chunk_sentences:
-            if args.chunk_sentences:
-                print(f"Streaming speech ({args.chunk_sentences} sentence(s) per chunk)...")
+        chunking = args.chunk_sentences or args.chunk_paragraphs
+        if args.stream or chunking:
+            if chunking:
+                if args.chunk_paragraphs:
+                    chunks = _split_paragraphs(text)
+                    label = "paragraph"
+                else:
+                    chunks = _split_sentences(text, args.chunk_sentences)
+                    label = f"{args.chunk_sentences} sentence(s)"
+                hybrid = " + token streaming" if args.stream else ""
+                print(f"Streaming speech ({label} chunks{hybrid})...")
                 _stream_mlx_sentences(
                     model, mode, text, args.language,
                     speaker, args.instruct, args.clone, args.ref_text,
-                    args.chunk_sentences,
+                    chunks=chunks,
+                    token_stream=args.stream,
                 )
             else:
-                print("Streaming speech (token-level)...")
+                print(f"Streaming speech (token-level, {args.stream_interval}s interval)...")
                 _stream_mlx_tokens(
                     model, mode, text, args.language,
                     speaker, args.instruct, args.clone, args.ref_text,
+                    args.stream_interval,
                 )
             return
 

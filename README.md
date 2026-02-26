@@ -36,11 +36,38 @@ qwen-tts "Now I sound like someone else." --clone reference.wav --ref-text "Tran
 # Design a voice from a description
 qwen-tts "Hi there!" --design --instruct "A warm, deep male voice with a calm tone"
 
+# Read from a file
+qwen-tts -f article.txt
+
 # Read from stdin
 echo "Pipe text in" | qwen-tts -
 
 # List available speakers
 qwen-tts --list-speakers
+```
+
+### Streaming (MLX backend)
+
+Stream long text as real-time audio instead of waiting for full generation:
+
+```bash
+# Token-level streaming — lowest latency, plays audio as tokens are generated
+qwen-tts --stream "The ocean has always called to us."
+
+# Sentence chunking — generates each sentence fully, no mid-word cuts
+qwen-tts --chunk-sentences 1 -f article.txt
+
+# Two sentences per chunk — longer prosody, fewer pauses
+qwen-tts --chunk-sentences 2 -f article.txt
+
+# Paragraph chunking — one chunk per paragraph (split on blank lines)
+qwen-tts --chunk-paragraphs -f article.txt
+
+# Hybrid mode — sentence chunks with token streaming within each (best for slower hardware)
+qwen-tts --stream --chunk-sentences 2 -f article.txt
+
+# Hybrid with paragraphs
+qwen-tts --stream --chunk-paragraphs -f article.txt
 ```
 
 ## Options
@@ -50,6 +77,7 @@ positional arguments:
   text                    Text to speak. Use "-" to read from stdin.
 
 options:
+  -f, --file FILE         Read text from a file
   -o, --output FILE       Output audio file (default: output.wav)
   -m, --model SIZE        Model: 0.6B, 1.7B, or full HF ID (default: 0.6B)
   -b, --backend BACKEND   Inference backend: transformers, mlx (default: auto)
@@ -66,6 +94,12 @@ voice cloning:
 
 voice design:
   --design                Design a voice using --instruct description
+
+streaming (MLX backend only):
+  --stream                Token-level streaming (combine with chunking for hybrid mode)
+  --stream-interval SECS  Seconds per token-level chunk (default: 2.0)
+  --chunk-sentences N     Stream in chunks of N sentences
+  --chunk-paragraphs      Stream in paragraph chunks (split on blank lines)
 ```
 
 ## Speakers
